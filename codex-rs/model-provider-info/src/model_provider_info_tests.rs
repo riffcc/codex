@@ -379,6 +379,69 @@ fn test_built_in_model_providers_include_cerebras() {
 }
 
 #[test]
+fn test_create_openrouter_provider() {
+    assert_eq!(
+        ModelProviderInfo::create_openrouter_provider(),
+        ModelProviderInfo {
+            name: "OpenRouter".to_string(),
+            base_url: Some("https://openrouter.ai/api/v1".to_string()),
+            env_key: Some("OPENROUTER_API_KEY".to_string()),
+            env_key_instructions: Some(
+                "Create an OpenRouter API key at https://openrouter.ai/keys and set OPENROUTER_API_KEY."
+                    .to_string(),
+            ),
+            experimental_bearer_token: None,
+            auth: None,
+            aws: None,
+            wire_api: WireApi::Chat,
+            query_params: None,
+            http_headers: Some(
+                [
+                    (
+                        "HTTP-Referer".to_string(),
+                        "https://github.com/riffcc/rolodex".to_string(),
+                    ),
+                    ("X-Title".to_string(), "Rolodex".to_string()),
+                ]
+                .into_iter()
+                .collect(),
+            ),
+            env_http_headers: None,
+            request_max_retries: None,
+            stream_max_retries: None,
+            stream_idle_timeout_ms: None,
+            websocket_connect_timeout_ms: None,
+            requires_openai_auth: false,
+            supports_websockets: false,
+        }
+    );
+}
+
+#[test]
+fn openrouter_provider_resolves_env_key() {
+    let provider = ModelProviderInfo::create_openrouter_provider();
+
+    assert_eq!(
+        provider
+            .api_key_with_env(|name| {
+                (name == OPENROUTER_API_KEY_ENV_VAR).then_some("or-key".to_string())
+            })
+            .expect("OpenRouter env key should resolve"),
+        Some("or-key".to_string())
+    );
+}
+
+#[test]
+fn test_built_in_model_providers_include_openrouter() {
+    let providers = built_in_model_providers(/*openai_base_url*/ None);
+
+    assert_eq!(
+        providers.get(OPENROUTER_PROVIDER_ID),
+        Some(&ModelProviderInfo::create_openrouter_provider())
+    );
+}
+
+#[test]
 fn test_merge_configured_model_providers_adds_custom_provider() {
     let custom_provider = ModelProviderInfo {
         name: "Custom".to_string(),

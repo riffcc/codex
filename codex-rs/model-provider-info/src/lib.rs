@@ -48,6 +48,10 @@ pub const CEREBRAS_PROVIDER_ID: &str = "cerebras";
 pub const CEREBRAS_DEFAULT_BASE_URL: &str = "https://api.cerebras.ai/v1";
 pub const CEREBRAS_API_KEY_ENV_VAR: &str = "CEREBRAS_API_KEY";
 pub const CEREBRAS_API_TOKEN_ENV_VAR: &str = "CEREBRAS_API_TOKEN";
+const OPENROUTER_PROVIDER_NAME: &str = "OpenRouter";
+pub const OPENROUTER_PROVIDER_ID: &str = "openrouter";
+pub const OPENROUTER_DEFAULT_BASE_URL: &str = "https://openrouter.ai/api/v1";
+pub const OPENROUTER_API_KEY_ENV_VAR: &str = "OPENROUTER_API_KEY";
 pub const LEGACY_OLLAMA_CHAT_PROVIDER_ID: &str = "ollama-chat";
 pub const OLLAMA_CHAT_PROVIDER_REMOVED_ERROR: &str = "`ollama-chat` is no longer supported.\nHow to fix: replace `ollama-chat` with `ollama` in `model_provider`, `oss_provider`, or `--local-provider`.\nMore info: https://github.com/openai/codex/discussions/7782";
 
@@ -448,6 +452,43 @@ impl ModelProviderInfo {
         }
     }
 
+    pub fn create_openrouter_provider() -> ModelProviderInfo {
+        ModelProviderInfo {
+            name: OPENROUTER_PROVIDER_NAME.into(),
+            base_url: Some(OPENROUTER_DEFAULT_BASE_URL.into()),
+            env_key: Some(OPENROUTER_API_KEY_ENV_VAR.into()),
+            env_key_instructions: Some(
+                "Create an OpenRouter API key at https://openrouter.ai/keys and set OPENROUTER_API_KEY."
+                    .to_string(),
+            ),
+            experimental_bearer_token: None,
+            auth: None,
+            aws: None,
+            wire_api: WireApi::Chat,
+            query_params: None,
+            // OpenRouter recommends these optional attribution headers for app
+            // ranking/discovery; they are static and carry no secrets.
+            http_headers: Some(
+                [
+                    (
+                        "HTTP-Referer".to_string(),
+                        "https://github.com/riffcc/rolodex".to_string(),
+                    ),
+                    ("X-Title".to_string(), "Rolodex".to_string()),
+                ]
+                .into_iter()
+                .collect(),
+            ),
+            env_http_headers: None,
+            request_max_retries: None,
+            stream_max_retries: None,
+            stream_idle_timeout_ms: None,
+            websocket_connect_timeout_ms: None,
+            requires_openai_auth: false,
+            supports_websockets: false,
+        }
+    }
+
     pub fn is_openai(&self) -> bool {
         self.name == OPENAI_PROVIDER_NAME
     }
@@ -479,6 +520,7 @@ pub fn built_in_model_providers(
     let openai_provider = P::create_openai_provider(openai_base_url);
     let amazon_bedrock_provider = P::create_amazon_bedrock_provider(/*aws*/ None);
     let cerebras_provider = P::create_cerebras_provider();
+    let openrouter_provider = P::create_openrouter_provider();
 
     // Keep this list short. Users can add more OpenAI-compatible providers in
     // `model_providers` in config.toml.
@@ -486,6 +528,7 @@ pub fn built_in_model_providers(
         (OPENAI_PROVIDER_ID, openai_provider),
         (AMAZON_BEDROCK_PROVIDER_ID, amazon_bedrock_provider),
         (CEREBRAS_PROVIDER_ID, cerebras_provider),
+        (OPENROUTER_PROVIDER_ID, openrouter_provider),
         (
             OLLAMA_OSS_PROVIDER_ID,
             create_oss_provider(DEFAULT_OLLAMA_PORT, WireApi::Responses),
