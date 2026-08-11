@@ -680,7 +680,7 @@ pub(super) async fn run_guardian_review_session(
     };
     let available_models = session
         .services
-        .models_manager
+        .models_manager()
         .list_models(codex_models_manager::manager::RefreshStrategy::Offline)
         .await;
     let preferred_reasoning_effort = |supports_low: bool, fallback| {

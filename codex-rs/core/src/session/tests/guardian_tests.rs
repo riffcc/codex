@@ -90,7 +90,7 @@ async fn request_permissions_routes_to_guardian_when_reviewer_is_enabled() {
     )
     .await;
 
-    let (mut session, mut turn_context_raw) = make_session_and_context().await;
+    let (session, mut turn_context_raw) = make_session_and_context().await;
     *session.active_turn.lock().await = Some(ActiveTurn::default());
     turn_context_raw
         .approval_policy
@@ -109,7 +109,7 @@ async fn request_permissions_routes_to_guardian_when_reviewer_is_enabled() {
         Arc::clone(&session.services.auth_manager),
         config.model_provider.clone(),
     );
-    session.services.models_manager = models_manager;
+    session.services.set_models_manager(models_manager);
     turn_context_raw.config = Arc::clone(&config);
     turn_context_raw.provider = create_model_provider(
         config.model_provider.clone(),
@@ -200,7 +200,7 @@ async fn request_permissions_guardian_review_stops_when_cancelled() {
     Arc::get_mut(&mut session)
         .expect("single session ref")
         .services
-        .models_manager = models_manager;
+        .set_models_manager(models_manager);
     turn_context_raw.config = Arc::clone(&config);
     turn_context_raw.provider = create_model_provider(
         config.model_provider.clone(),
@@ -315,7 +315,7 @@ async fn guardian_allows_shell_command_additional_permissions_requests_past_poli
         Arc::clone(&session.services.auth_manager),
         config.model_provider.clone(),
     );
-    session.services.models_manager = models_manager;
+    session.services.set_models_manager(models_manager);
     turn_context_raw.config = Arc::clone(&config);
     turn_context_raw.provider = create_model_provider(
         config.model_provider.clone(),
@@ -385,7 +385,7 @@ async fn strict_auto_review_turn_grant_forces_guardian_for_shell_command_policy_
     )
     .await;
 
-    let (mut session, mut turn_context_raw) = make_session_and_context().await;
+    let (session, mut turn_context_raw) = make_session_and_context().await;
     let active_turn = crate::state::ActiveTurn::default();
     let originating_turn_state = Arc::clone(&active_turn.turn_state);
     *session.active_turn.lock().await = Some(active_turn);
@@ -420,7 +420,7 @@ async fn strict_auto_review_turn_grant_forces_guardian_for_shell_command_policy_
         Arc::clone(&session.services.auth_manager),
         config.model_provider.clone(),
     );
-    session.services.models_manager = models_manager;
+    session.services.set_models_manager(models_manager);
     turn_context_raw.config = Arc::clone(&config);
     turn_context_raw.provider = create_model_provider(
         config.model_provider.clone(),

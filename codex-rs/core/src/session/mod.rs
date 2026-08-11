@@ -1503,7 +1503,20 @@ impl Session {
         if provider_changed {
             self.services
                 .model_client
-                .set_provider_info(Some(Arc::clone(&self.services.auth_manager)), next_provider);
+                .set_provider_info(Some(Arc::clone(&self.services.auth_manager)), next_provider.clone());
+            // Rebind the models manager to the new provider so per-turn
+            // metadata resolution (get_model_info) uses the provider-native
+            // catalog — e.g. an OpenRouter manager resolves free-typed slugs
+            // that a manager bound to the previous provider could not. Without
+            // this, a mid-session switch to OpenRouter leaves the session
+            // resolving metadata against the stale manager, so the switched
+            // model falls back to generic placeholder metadata.
+            let rebound_manager = crate::thread_manager::build_models_manager_for_provider(
+                next_provider,
+                codex_home.to_path_buf(),
+                Arc::clone(&self.services.auth_manager),
+            );
+            self.services.set_models_manager(rebound_manager);
         }
 
         Ok(())
@@ -1543,7 +1556,7 @@ impl Session {
         };
         let provider_id = self
             .services
-            .models_manager
+            .models_manager()
             .detected_model_provider_id(requested_model);
         updates.model_provider_id = Some(provider_id.unwrap_or(fallback_model_provider_id));
     }

@@ -54,7 +54,15 @@ pub(crate) struct SessionServices {
     pub(crate) show_raw_agent_reasoning: bool,
     pub(crate) exec_policy: Arc<ExecPolicyManager>,
     pub(crate) auth_manager: Arc<AuthManager>,
-    pub(crate) models_manager: SharedModelsManager,
+    /// Provider-bound model catalog manager, swapped on a mid-session provider
+    /// switch (see `Session::update_settings` and `set_models_manager`) so
+    /// per-turn metadata resolution (`get_model_info`) follows the active
+    /// provider — e.g. an OpenRouter manager resolves free-typed slugs via the
+    /// provider-native catalog hook that a manager bound to a different
+    /// provider would not. Guarded by a `RwLock` because the swap happens
+    /// through `&self`; readers clone the `Arc` out (`models_manager()`) so no
+    /// guard is held across `.await`.
+    pub(crate) models_manager_cell: std::sync::RwLock<SharedModelsManager>,
     pub(crate) session_telemetry: SessionTelemetry,
     pub(crate) tool_approvals: Mutex<ApprovalStore>,
     pub(crate) guardian_rejections: Mutex<HashMap<String, GuardianRejection>>,
@@ -81,4 +89,27 @@ pub(crate) struct SessionServices {
     /// Shared process-level environment registry. Sessions carry an `Arc` handle so they can pass
     /// the same manager through child-thread spawn paths without reconstructing it.
     pub(crate) environment_manager: Arc<EnvironmentManager>,
+}
+
+impl SessionServices {
+    /// Snapshot the active provider-bound models manager as an owned handle.
+    ///
+    /// The lock is released before the clone returns, so callers may freely
+    /// `.await` on the manager (e.g. `get_model_info`, which fetches the
+    /// OpenRouter catalog for a free-typed slug) without holding the guard.
+    pub(crate) fn models_manager(&self) -> SharedModelsManager {
+        self.models_manager_cell
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
+    }
+
+    /// Rebind the models manager to a new provider. Used by
+    /// `Session::update_settings` on a mid-session provider switch.
+    pub(crate) fn set_models_manager(&self, manager: SharedModelsManager) {
+        *self
+            .models_manager_cell
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = manager;
+    }
 }

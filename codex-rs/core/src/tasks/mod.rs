@@ -192,7 +192,7 @@ impl SessionTaskContext {
     }
 
     pub(crate) fn models_manager(&self) -> SharedModelsManager {
-        Arc::clone(&self.session.services.models_manager)
+        self.session.services.models_manager()
     }
 }
 

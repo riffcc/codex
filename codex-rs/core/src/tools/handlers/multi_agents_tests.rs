@@ -572,7 +572,7 @@ async fn spawn_agent_service_tier_inheritance_preserves_supported_or_configured_
     {
         let (mut session, turn) = make_session_and_context().await;
         let mut turn = turn
-            .with_model("gpt-5.4".to_string(), &session.services.models_manager)
+            .with_model("gpt-5.4".to_string(), &session.services.models_manager())
             .await;
         let mut config = (*turn.config).clone();
         config.service_tier = Some(ServiceTier::Fast.request_value().to_string());
@@ -613,7 +613,7 @@ async fn spawn_agent_service_tier_inheritance_preserves_supported_or_configured_
     {
         let (mut session, turn) = make_session_and_context().await;
         let mut turn = turn
-            .with_model("gpt-5.4".to_string(), &session.services.models_manager)
+            .with_model("gpt-5.4".to_string(), &session.services.models_manager())
             .await;
         let mut config = (*turn.config).clone();
         config.service_tier = Some(ServiceTier::Fast.request_value().to_string());
@@ -727,7 +727,7 @@ async fn spawn_agent_role_service_tier_falls_back_to_supported_parent_tier() {
 
     let (mut session, turn) = make_session_and_context().await;
     let mut turn = turn
-        .with_model("gpt-5.4".to_string(), &session.services.models_manager)
+        .with_model("gpt-5.4".to_string(), &session.services.models_manager())
         .await;
     tokio::fs::create_dir_all(&turn.config.codex_home)
         .await
@@ -849,7 +849,7 @@ async fn spawn_agent_full_history_fork_accepts_explicit_service_tier() {
 
     let (mut session, turn) = make_session_and_context().await;
     let turn = turn
-        .with_model("gpt-5.4".to_string(), &session.services.models_manager)
+        .with_model("gpt-5.4".to_string(), &session.services.models_manager())
         .await;
     let manager = thread_manager();
     let root = manager
@@ -897,7 +897,7 @@ async fn multi_agent_v2_full_history_fork_accepts_explicit_service_tier() {
 
     let (mut session, turn) = make_session_and_context().await;
     let mut turn = turn
-        .with_model("gpt-5.4".to_string(), &session.services.models_manager)
+        .with_model("gpt-5.4".to_string(), &session.services.models_manager())
         .await;
     let mut config = (*turn.config).clone();
     config

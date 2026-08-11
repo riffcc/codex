@@ -1026,7 +1026,7 @@ impl Session {
                 exec_policy,
                 auth_manager: Arc::clone(&auth_manager),
                 session_telemetry,
-                models_manager: Arc::clone(&models_manager),
+                models_manager_cell: std::sync::RwLock::new(Arc::clone(&models_manager)),
                 tool_approvals: Mutex::new(ApprovalStore::default()),
                 guardian_rejections: Mutex::new(HashMap::new()),
                 guardian_rejection_circuit_breaker: Mutex::new(Default::default()),

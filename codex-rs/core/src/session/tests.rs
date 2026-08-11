@@ -3394,11 +3394,11 @@ async fn turn_context_with_model_updates_model_fields() {
     let (session, mut turn_context) = make_session_and_context().await;
     turn_context.reasoning_effort = Some(ReasoningEffortConfig::Minimal);
     let updated = turn_context
-        .with_model("gpt-5.4".to_string(), &session.services.models_manager)
+        .with_model("gpt-5.4".to_string(), &session.services.models_manager())
         .await;
     let expected_model_info = session
         .services
-        .models_manager
+        .models_manager()
         .get_model_info(
             "gpt-5.4",
             &updated.config.as_ref().to_models_manager_config(),
@@ -3787,6 +3787,45 @@ async fn session_settings_model_provider_update_switches_provider_mid_session() 
     assert!(
         updated.provider.is_openrouter(),
         "resolved provider info should be OpenRouter after the switch"
+    );
+}
+
+#[tokio::test]
+async fn update_settings_rebinds_models_manager_when_provider_switches() {
+    let (session, _turn_context) = make_session_and_context().await;
+    let manager_before_switch = session.services.models_manager();
+
+    // A settings update that does NOT change the provider must leave the models
+    // manager bound to the same provider (same Arc identity). This proves the
+    // rebind is gated on a provider change, not applied unconditionally.
+    session
+        .update_settings(SessionSettingsUpdate {
+            approval_policy: Some(AskForApproval::OnRequest),
+            ..Default::default()
+        })
+        .await
+        .expect("non-provider settings update should apply");
+    assert!(
+        Arc::ptr_eq(&manager_before_switch, &session.services.models_manager()),
+        "a settings update that does not change the provider must not rebind the models manager"
+    );
+
+    // Switching the provider mid-session must rebind the models manager to the
+    // new provider so per-turn metadata resolution (get_model_info) consults the
+    // provider-native catalog — e.g. an OpenRouter manager resolves free-typed
+    // slugs that a manager bound to the previous provider could not. Before this
+    // rebind, the session kept resolving metadata against the stale manager and
+    // switched models fell back to generic placeholder metadata.
+    session
+        .update_settings(SessionSettingsUpdate {
+            model_provider_id: Some("openrouter".to_string()),
+            ..Default::default()
+        })
+        .await
+        .expect("provider switch should apply");
+    assert!(
+        !Arc::ptr_eq(&manager_before_switch, &session.services.models_manager()),
+        "switching the model provider mid-session must rebind the models manager to the new provider"
     );
 }
 
@@ -4858,7 +4897,7 @@ pub(crate) async fn make_session_and_context() -> (Session, TurnContext) {
         exec_policy,
         auth_manager: auth_manager.clone(),
         session_telemetry: session_telemetry.clone(),
-        models_manager: Arc::clone(&models_manager),
+        models_manager_cell: std::sync::RwLock::new(Arc::clone(&models_manager)),
         tool_approvals: Mutex::new(ApprovalStore::default()),
         guardian_rejections: Mutex::new(std::collections::HashMap::new()),
         guardian_rejection_circuit_breaker: Mutex::new(Default::default()),
@@ -6925,7 +6964,7 @@ where
         exec_policy,
         auth_manager: Arc::clone(&auth_manager),
         session_telemetry: session_telemetry.clone(),
-        models_manager: Arc::clone(&models_manager),
+        models_manager_cell: std::sync::RwLock::new(Arc::clone(&models_manager)),
         tool_approvals: Mutex::new(ApprovalStore::default()),
         guardian_rejections: Mutex::new(std::collections::HashMap::new()),
         guardian_rejection_circuit_breaker: Mutex::new(Default::default()),
@@ -7127,7 +7166,7 @@ async fn build_settings_update_items_emits_environment_item_for_network_changes(
     let mut current_context = previous_context
         .with_model(
             previous_context.model_info.slug.clone(),
-            &session.services.models_manager,
+            &session.services.models_manager(),
         )
         .await;
 
@@ -7230,7 +7269,7 @@ async fn build_settings_update_items_emits_environment_item_for_time_changes() {
     let mut current_context = previous_context
         .with_model(
             previous_context.model_info.slug.clone(),
-            &session.services.models_manager,
+            &session.services.models_manager(),
         )
         .await;
     current_context.current_date = Some("2026-02-27".to_string());
@@ -7256,7 +7295,7 @@ async fn build_settings_update_items_omits_environment_item_when_disabled() {
     let mut current_context = previous_context
         .with_model(
             previous_context.model_info.slug.clone(),
-            &session.services.models_manager,
+            &session.services.models_manager(),
         )
         .await;
     let mut config = (*current_context.config).clone();
@@ -7285,7 +7324,7 @@ async fn build_settings_update_items_emits_realtime_start_when_session_becomes_l
     let mut current_context = previous_context
         .with_model(
             previous_context.model_info.slug.clone(),
-            &session.services.models_manager,
+            &session.services.models_manager(),
         )
         .await;
     current_context.realtime_active = true;
@@ -7313,7 +7352,7 @@ async fn build_settings_update_items_emits_realtime_end_when_session_stops_being
     let mut current_context = previous_context
         .with_model(
             previous_context.model_info.slug.clone(),
-            &session.services.models_manager,
+            &session.services.models_manager(),
         )
         .await;
     current_context.realtime_active = false;
@@ -7346,7 +7385,7 @@ async fn build_settings_update_items_uses_previous_turn_settings_for_realtime_en
     let mut current_context = previous_context
         .with_model(
             previous_context.model_info.slug.clone(),
-            &session.services.models_manager,
+            &session.services.models_manager(),
         )
         .await;
     current_context.realtime_active = false;
@@ -8092,7 +8131,7 @@ async fn record_context_updates_and_set_reference_context_item_persists_baseline
         "gpt-5.4"
     };
     let turn_context = previous_context
-        .with_model(next_model.to_string(), &session.services.models_manager)
+        .with_model(next_model.to_string(), &session.services.models_manager())
         .await;
     let previous_context_item = previous_context.to_turn_context_item();
     {
@@ -8208,7 +8247,7 @@ async fn record_context_updates_and_set_reference_context_item_persists_full_rei
         "gpt-5.4"
     };
     let turn_context = previous_context
-        .with_model(next_model.to_string(), &session.services.models_manager)
+        .with_model(next_model.to_string(), &session.services.models_manager())
         .await;
     let rollout_path = attach_thread_persistence(&mut session).await;
 

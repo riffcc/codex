@@ -228,6 +228,27 @@ pub fn build_models_manager(
     )
 }
 
+/// Build a fresh models manager bound to a specific provider.
+///
+/// Used when a session switches providers mid-stream (see
+/// `Session::update_settings`): the session's models manager must follow the
+/// active provider so per-turn metadata resolution (`get_model_info`) consults
+/// the right provider-native catalog — e.g. an OpenRouter manager resolves
+/// free-typed slugs via the OpenRouter catalog hook that a manager bound to a
+/// different provider would not.
+///
+/// The manager is built without a config-supplied catalog so a dynamic
+/// `OpenAiModelsManager` (with the provider-native resolution hook) is always
+/// used; a `StaticModelsManager` would skip provider-native resolution.
+pub(crate) fn build_models_manager_for_provider(
+    provider_info: ModelProviderInfo,
+    codex_home: PathBuf,
+    auth_manager: Arc<AuthManager>,
+) -> SharedModelsManager {
+    let provider = create_model_provider(provider_info, Some(auth_manager));
+    provider.models_manager(codex_home, /*config_model_catalog*/ None)
+}
+
 pub fn thread_store_from_config(
     config: &Config,
     state_db: Option<StateDbHandle>,
