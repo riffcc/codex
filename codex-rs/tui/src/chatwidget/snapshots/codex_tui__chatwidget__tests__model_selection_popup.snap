@@ -14,7 +14,7 @@ expression: popup
 › 5. gpt-5.2 (current)           Optimized for professional work and long-
                                  running agents.
   6. Enter an OpenRouter model…  Switch to OpenRouter by typing a routed model
-                                 id (e.g. anthropic/claude-sonnet-4). Starts a
-                                 new session.
+                                 id (e.g. anthropic/claude-sonnet-4). Applies
+                                 to the current session.
 
   Press enter to confirm or esc to go back

@@ -36,6 +36,25 @@ impl App {
         })
     }
 
+    /// Switch both the model slug and the provider on the active thread for
+    /// subsequent turns, without restarting the session. Used for mid-session
+    /// provider switches (e.g. to OpenRouter).
+    pub(super) async fn sync_active_thread_model_and_provider_setting(
+        &mut self,
+        app_server: &mut AppServerSession,
+        model: String,
+        model_provider: String,
+    ) {
+        let Some(params) = self.active_thread_model_setting_update_params(model) else {
+            return;
+        };
+        let params = ThreadSettingsUpdateParams {
+            model_provider: Some(model_provider),
+            ..params
+        };
+        self.send_thread_settings_update(app_server, params).await;
+    }
+
     pub(super) async fn sync_active_thread_reasoning_setting(
         &mut self,
         app_server: &mut AppServerSession,

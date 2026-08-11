@@ -217,7 +217,7 @@ impl ChatWidget {
             name: "Enter an OpenRouter model…".to_string(),
             description: Some(
                 "Switch to OpenRouter by typing a routed model id (e.g. \
-                 anthropic/claude-sonnet-4). Starts a new session."
+                 anthropic/claude-sonnet-4). Applies to the current session."
                     .to_string(),
             ),
             actions: vec![Box::new(|tx| {
@@ -231,11 +231,11 @@ impl ChatWidget {
     /// Open a free-text prompt to type an OpenRouter model slug.
     ///
     /// On submit the slug is persisted to config as `model` with
-    /// `model_provider = "openrouter"`, and a fresh session is started bound
-    /// to OpenRouter. Provider is bound at thread creation, so switching to
-    /// OpenRouter always opens a new session rather than repointing the live
-    /// thread. Model metadata (context window, family, etc.) is filled from the
-    /// OpenRouter catalog resolution hook.
+    /// `model_provider = "openrouter"`, and the active thread is switched to
+    /// OpenRouter mid-session via a thread-settings update (the session applies
+    /// the new provider to subsequent turns). The live conversation is
+    /// preserved. Model metadata (context window, family, etc.) is filled from
+    /// the OpenRouter catalog resolution hook.
     pub(crate) fn open_custom_model_prompt(&mut self) {
         let tx = self.app_event_tx.clone();
         let view = CustomPromptView::new(

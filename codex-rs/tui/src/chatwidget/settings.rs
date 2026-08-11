@@ -267,6 +267,21 @@ impl ChatWidget {
         self.refresh_model_dependent_surfaces();
     }
 
+    /// Switch the model AND provider in the widget's config copy. Used for
+    /// mid-session provider switches (e.g. to OpenRouter) where the resolved
+    /// provider info must update alongside the slug so provider-aware UI and
+    /// metadata resolution stay consistent.
+    pub(crate) fn set_model_provider(
+        &mut self,
+        model: &str,
+        provider_id: String,
+        provider: codex_model_provider_info::ModelProviderInfo,
+    ) {
+        self.config.model_provider_id = provider_id;
+        self.config.model_provider = provider;
+        self.set_model(model);
+    }
+
     pub(crate) fn current_model(&self) -> &str {
         if !self.collaboration_modes_enabled() {
             return self.current_collaboration_mode.model();

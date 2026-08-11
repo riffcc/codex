@@ -95,6 +95,47 @@ async fn thread_settings_update_emits_notification_and_updates_future_turns() ->
 }
 
 #[tokio::test]
+async fn thread_settings_update_model_provider_switches_provider_mid_session() -> Result<()> {
+    let server = create_mock_responses_server_sequence_unchecked(vec![
+        create_final_assistant_message_sse_response("done")?,
+    ])
+    .await;
+    let codex_home = TempDir::new()?;
+    create_config_toml(codex_home.path(), &server.uri())?;
+
+    let mut mcp = TestAppServer::new(codex_home.path()).await?;
+    timeout(DEFAULT_TIMEOUT, mcp.initialize()).await??;
+    let thread = start_thread(&mut mcp).await?.thread;
+
+    // The thread starts on the mock provider, not OpenRouter.
+    assert_ne!(thread.model_provider, "openrouter");
+
+    // Switch the provider mid-session without restarting the thread.
+    send_thread_settings_update(
+        &mut mcp,
+        ThreadSettingsUpdateParams {
+            thread_id: thread.id.clone(),
+            model_provider: Some("openrouter".to_string()),
+            ..Default::default()
+        },
+    )
+    .await?;
+
+    let updated = read_thread_settings_updated(&mut mcp).await?;
+    assert_eq!(updated.thread_id, thread.id);
+    assert_eq!(
+        updated.thread_settings.model_provider, "openrouter",
+        "mid-session provider switch should rebind subsequent turns to OpenRouter"
+    );
+
+    assert!(
+        received_response_bodies(&server).await?.is_empty(),
+        "settings-only update should not start a model request"
+    );
+    Ok(())
+}
+
+#[tokio::test]
 async fn thread_settings_update_while_turn_is_active_emits_notification() -> Result<()> {
     let server = responses::start_mock_server().await;
     let first_response =

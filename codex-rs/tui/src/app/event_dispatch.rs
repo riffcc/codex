@@ -6,6 +6,7 @@
 use super::resize_reflow::trailing_run_start;
 use super::*;
 use crate::config_update::format_config_error;
+use codex_model_provider_info::OPENROUTER_PROVIDER_ID;
 #[cfg(target_os = "windows")]
 use codex_config::types::WindowsSandboxModeToml;
 
@@ -868,12 +869,42 @@ impl App {
                 .await
                 {
                     Ok(_) => {
-                        tracing::info!("Switching to OpenRouter model: {model}");
-                        self.start_fresh_session_with_summary_hint(
-                            tui,
+                        tracing::info!("Switching to OpenRouter model (mid-session): {model}");
+                        // Optimistic local update: reflect the switch in both the
+                        // app and widget config copies immediately. The
+                        // authoritative switch is the thread-settings update
+                        // below (the session applies the provider to subsequent
+                        // turns); the ThreadSettingsUpdated notification then
+                        // reconciles the cached session and widget. The live
+                        // conversation is preserved -- no new session.
+                        match self
+                            .config
+                            .model_providers
+                            .get(OPENROUTER_PROVIDER_ID)
+                            .cloned()
+                        {
+                            Some(provider) => {
+                                self.config.model_provider_id =
+                                    OPENROUTER_PROVIDER_ID.to_string();
+                                self.config.model_provider = provider.clone();
+                                self.chat_widget.set_model_provider(
+                                    &model,
+                                    OPENROUTER_PROVIDER_ID.to_string(),
+                                    provider,
+                                );
+                            }
+                            None => {
+                                tracing::warn!(
+                                    "OpenRouter provider missing from model_providers; \
+                                     switching model slug only"
+                                );
+                                self.chat_widget.set_model(&model);
+                            }
+                        }
+                        self.sync_active_thread_model_and_provider_setting(
                             app_server,
-                            /*session_start_source*/ None,
-                            /*initial_user_message*/ None,
+                            model.clone(),
+                            OPENROUTER_PROVIDER_ID.to_string(),
                         )
                         .await;
                         self.chat_widget.add_info_message(
