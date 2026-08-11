@@ -198,7 +198,7 @@ impl ChatWidget {
         items.push(self.custom_model_slug_item());
 
         let subtitle = if items.len() == 1 {
-            "No bundled models are available -- type a slug for your provider (e.g. an OpenRouter id)."
+            "No bundled models are available -- switch to OpenRouter by typing a routed model id."
         } else {
             "Access legacy models by running codex -m <model_name> or in your config.toml"
         };
@@ -211,14 +211,15 @@ impl ChatWidget {
         });
     }
 
-    /// Selection entry that opens the free-text custom model prompt.
+    /// Selection entry that opens the free-text OpenRouter model prompt.
     fn custom_model_slug_item(&self) -> SelectionItem {
-        let current_model = self.current_model().to_string();
         SelectionItem {
-            name: "Type a model slug…".to_string(),
-            description: Some(format!(
-                "Use any model id under the current provider (current: {current_model})"
-            )),
+            name: "Enter an OpenRouter model…".to_string(),
+            description: Some(
+                "Switch to OpenRouter by typing a routed model id (e.g. \
+                 anthropic/claude-sonnet-4). Starts a new session."
+                    .to_string(),
+            ),
             actions: vec![Box::new(|tx| {
                 tx.send(AppEvent::OpenCustomModelPrompt);
             })],
@@ -227,17 +228,19 @@ impl ChatWidget {
         }
     }
 
-    /// Open a free-text prompt to type any model slug.
+    /// Open a free-text prompt to type an OpenRouter model slug.
     ///
-    /// The typed slug switches the live session and is persisted to config
-    /// under the current provider. For non-OpenAI routers (e.g. OpenRouter),
-    /// set `model_provider` in config first; then type the router's model id
-    /// here and metadata fills from the provider's catalog.
+    /// On submit the slug is persisted to config as `model` with
+    /// `model_provider = "openrouter"`, and a fresh session is started bound
+    /// to OpenRouter. Provider is bound at thread creation, so switching to
+    /// OpenRouter always opens a new session rather than repointing the live
+    /// thread. Model metadata (context window, family, etc.) is filled from the
+    /// OpenRouter catalog resolution hook.
     pub(crate) fn open_custom_model_prompt(&mut self) {
         let tx = self.app_event_tx.clone();
         let view = CustomPromptView::new(
-            "Custom model".to_string(),
-            "Type a model slug (e.g. anthropic/claude-sonnet-4) and press Enter".to_string(),
+            "OpenRouter model".to_string(),
+            "Type a routed model id (e.g. anthropic/claude-sonnet-4) and press Enter".to_string(),
             /*initial_text*/ String::new(),
             /*context_label*/ None,
             Box::new(move |slug: String| {
@@ -245,11 +248,7 @@ impl ChatWidget {
                 if slug.is_empty() {
                     return;
                 }
-                tx.send(AppEvent::UpdateModel(slug.clone()));
-                tx.send(AppEvent::PersistModelSelection {
-                    model: slug,
-                    effort: None,
-                });
+                tx.send(AppEvent::SwitchToOpenRouterModel { model: slug });
             }),
         );
         self.bottom_pane.show_view(Box::new(view));

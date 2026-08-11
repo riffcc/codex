@@ -19,6 +19,7 @@ use codex_config::loader::project_trust_key;
 use codex_features::FEATURES;
 use codex_model_provider_info::CEREBRAS_PROVIDER_ID;
 use codex_model_provider_info::OLLAMA_OSS_PROVIDER_ID;
+use codex_model_provider_info::OPENROUTER_PROVIDER_ID;
 use codex_protocol::config_types::SERVICE_TIER_DEFAULT_REQUEST_VALUE;
 use codex_protocol::config_types::TrustLevel;
 use codex_utils_absolute_path::AbsolutePathBuf;
@@ -98,6 +99,23 @@ fn is_ollama_gemma4_model(model: &str) -> bool {
 
 fn is_cerebras_gemma4_model(model: &str) -> bool {
     model == "gemma-4-31b"
+}
+
+/// Config edits for switching to an OpenRouter model.
+///
+/// Writes the slug under `model` and pins `model_provider = "openrouter"` so
+/// the provider registry resolves to the OpenRouter wire config. Effort is
+/// cleared because OpenRouter-model effort is controlled by the router, not by
+/// a global default that may be invalid for a routed model.
+pub(crate) fn build_openrouter_model_selection_edits(model: &str) -> Vec<ConfigEdit> {
+    vec![
+        replace_config_value("model", serde_json::json!(model)),
+        replace_config_value(
+            "model_provider",
+            serde_json::json!(OPENROUTER_PROVIDER_ID),
+        ),
+        clear_config_value("model_reasoning_effort"),
+    ]
 }
 
 pub(crate) fn build_service_tier_selection_edits(service_tier: Option<&str>) -> Vec<ConfigEdit> {

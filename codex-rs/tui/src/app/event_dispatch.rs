@@ -859,6 +859,40 @@ impl App {
             AppEvent::OpenCustomModelPrompt => {
                 self.chat_widget.open_custom_model_prompt();
             }
+            AppEvent::SwitchToOpenRouterModel { model } => {
+                let edits = crate::config_update::build_openrouter_model_selection_edits(&model);
+                match crate::config_update::write_config_batch(
+                    app_server.request_handle(),
+                    edits,
+                )
+                .await
+                {
+                    Ok(_) => {
+                        tracing::info!("Switching to OpenRouter model: {model}");
+                        self.start_fresh_session_with_summary_hint(
+                            tui,
+                            app_server,
+                            /*session_start_source*/ None,
+                            /*initial_user_message*/ None,
+                        )
+                        .await;
+                        self.chat_widget.add_info_message(
+                            format!("Switched to OpenRouter · {model}"),
+                            /*hint*/ None,
+                        );
+                    }
+                    Err(err) => {
+                        let error = format_config_error(&err);
+                        tracing::error!(
+                            error = %error,
+                            "failed to persist OpenRouter model selection"
+                        );
+                        self.chat_widget.add_error_message(format!(
+                            "Failed to save OpenRouter model selection: {error}"
+                        ));
+                    }
+                }
+            }
             AppEvent::OpenFullAccessConfirmation {
                 preset,
                 return_to_permissions,

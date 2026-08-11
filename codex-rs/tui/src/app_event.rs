@@ -769,9 +769,19 @@ pub(crate) enum AppEvent {
         models: Vec<ModelPreset>,
     },
 
-    /// Open the free-text custom model prompt (type any slug under the
-    /// current provider, e.g. an OpenRouter id like `anthropic/claude-sonnet-4`).
+    /// Open the free-text OpenRouter model prompt (type any slug, e.g.
+    /// `anthropic/claude-sonnet-4`). On submit, persist
+    /// `model_provider = openrouter` + the slug and start a fresh session
+    /// bound to OpenRouter.
     OpenCustomModelPrompt,
+
+    /// Persist `model` + `model_provider = "openrouter"` to config and start a
+    /// fresh session bound to OpenRouter. Provider is bound at thread creation
+    /// and cannot be repointed on a live thread, so switching providers always
+    /// requires a new session.
+    SwitchToOpenRouterModel {
+        model: String,
+    },
 
     /// Open the confirmation prompt before enabling full access mode.
     OpenFullAccessConfirmation {

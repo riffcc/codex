@@ -2374,8 +2374,8 @@ async fn model_picker_includes_custom_slug_entry() {
 
     let popup = render_bottom_popup(&chat, /*width*/ 80);
     assert!(
-        popup.contains("Type a model slug…"),
-        "expected free-text entry in model popup:\n{popup}"
+        popup.contains("Enter an OpenRouter model…"),
+        "expected OpenRouter entry in model popup:\n{popup}"
     );
 }
 
@@ -2388,8 +2388,8 @@ async fn all_models_popup_keeps_custom_slug_entry_when_no_picker_models() {
 
     let popup = render_bottom_popup(&chat, /*width*/ 80);
     assert!(
-        popup.contains("Type a model slug…"),
-        "free-text entry must stay reachable when no picker models exist:\n{popup}"
+        popup.contains("Enter an OpenRouter model…"),
+        "OpenRouter entry must stay reachable when no picker models exist:\n{popup}"
     );
 }
 
@@ -2405,22 +2405,21 @@ async fn custom_slug_entry_requests_custom_prompt() {
 }
 
 #[tokio::test]
-async fn custom_model_prompt_submit_switches_and_persists_model() {
+async fn custom_model_prompt_submit_switches_to_openrouter() {
     let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(Some("gpt-5.2")).await;
     while rx.try_recv().is_ok() {}
     chat.open_custom_model_prompt();
     chat.handle_paste("vendor/typed-model".to_string());
     chat.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
 
+    // The entry is OpenRouter-specific: it must request a provider switch
+    // (persisting `model_provider = openrouter` + a fresh session bound to it),
+    // NOT a plain model-only update that would stay on the current provider.
     assert_matches!(
         rx.try_recv(),
-        Ok(AppEvent::UpdateModel(model)) if model == "vendor/typed-model"
+        Ok(AppEvent::SwitchToOpenRouterModel { model }) if model == "vendor/typed-model"
     );
-    assert_matches!(
-        rx.try_recv(),
-        Ok(AppEvent::PersistModelSelection { model, effort })
-            if model == "vendor/typed-model" && effort.is_none()
-    );
+    assert!(rx.try_recv().is_err(), "no further events expected");
 }
 
 #[tokio::test]
