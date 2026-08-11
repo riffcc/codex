@@ -432,6 +432,14 @@ fn openrouter_provider_resolves_env_key() {
 }
 
 #[test]
+fn openrouter_provider_is_openrouter() {
+    assert!(ModelProviderInfo::create_openrouter_provider().is_openrouter());
+    assert!(!ModelProviderInfo::create_openai_provider(/*base_url*/ None).is_openrouter());
+    assert!(!ModelProviderInfo::create_cerebras_provider().is_openrouter());
+    assert!(!ModelProviderInfo::create_amazon_bedrock_provider(/*aws*/ None).is_openrouter());
+}
+
+#[test]
 fn test_built_in_model_providers_include_openrouter() {
     let providers = built_in_model_providers(/*openai_base_url*/ None);
 

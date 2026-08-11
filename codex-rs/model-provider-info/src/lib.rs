@@ -497,6 +497,10 @@ impl ModelProviderInfo {
         self.name == AMAZON_BEDROCK_PROVIDER_NAME
     }
 
+    pub fn is_openrouter(&self) -> bool {
+        self.name == OPENROUTER_PROVIDER_NAME
+    }
+
     pub fn supports_remote_compaction(&self) -> bool {
         self.is_openai() || is_azure_responses_provider(&self.name, self.base_url.as_deref())
     }
