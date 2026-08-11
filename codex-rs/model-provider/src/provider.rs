@@ -625,4 +625,53 @@ mod tests {
                 .any(|model| model.slug == "provider-model")
         );
     }
+
+    #[tokio::test]
+    async fn openrouter_provider_never_floods_picker_with_catalog_models() {
+        // Reproduces the reported regression: OpenRouter inherits the global
+        // ChatGPT auth manager (auth_manager_for_provider returns the base
+        // manager when a provider has no command auth), which makes
+        // uses_codex_backend() true and would otherwise force a `/models`
+        // refresh. OpenRouter's `/models` returns thousands of routed models
+        // that must never reach the picker (resolution is via
+        // resolve_native_model_info). Mount a mock that *would* flood the
+        // catalog; assert it is never hit and none of its models leak.
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/models"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("content-type", "application/json")
+                    .set_body_json(ModelsResponse {
+                        models: vec![
+                            remote_model("vendor/flooded-model-a"),
+                            remote_model("vendor/flooded-model-b"),
+                        ],
+                    }),
+            )
+            // Expect zero hits: the endpoint must short-circuit before fetching.
+            .expect(0)
+            .mount(&server)
+            .await;
+
+        let mut provider_info = ModelProviderInfo::create_openrouter_provider();
+        provider_info.base_url = Some(server.uri());
+        let provider = create_model_provider(
+            provider_info,
+            Some(AuthManager::from_auth_for_testing(
+                CodexAuth::create_dummy_chatgpt_auth_for_testing(),
+            )),
+        );
+
+        let manager = provider.models_manager(test_codex_home(), /*config_model_catalog*/ None);
+        let catalog = manager.raw_model_catalog(RefreshStrategy::Online).await;
+
+        assert!(
+            catalog
+                .models
+                .iter()
+                .all(|model| !model.slug.starts_with("vendor/flooded-model")),
+            "OpenRouter catalog models must never reach the picker"
+        );
+    }
 }

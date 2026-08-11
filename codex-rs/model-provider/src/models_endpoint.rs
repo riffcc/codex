@@ -87,6 +87,16 @@ impl ModelsEndpointClient for OpenAiModelsEndpoint {
         &self,
         client_version: &str,
     ) -> CoreResult<(Vec<ModelInfo>, Option<String>)> {
+        // OpenRouter publishes thousands of routed models and is resolution-only
+        // by design (free-typed slugs resolve metadata through
+        // `resolve_native_model_info`). Publishing its `/models` catalog into the
+        // picker would flood it, so the list endpoint is short-circuited here
+        // before any auth resolution or network call. The session's bundled
+        // catalog (loaded from cache/disk) still backs the picker; OpenRouter
+        // models are reached only via free-text entry.
+        if self.provider_info.is_openrouter() {
+            return Ok((Vec::new(), None));
+        }
         let _timer =
             codex_otel::start_global_timer("codex.remote_models.fetch_update.duration_ms", &[]);
         let auth = self.auth().await;
@@ -345,6 +355,34 @@ mod tests {
             .resolve_native_model_info("vendor/typed-model")
             .await
             .is_none());
+    }
+
+    #[tokio::test]
+    async fn openrouter_list_models_does_not_publish_picker_catalog() {
+        // OpenRouter's `/models` endpoint returns thousands of routed models.
+        // The picker must never receive them (resolution is via
+        // `resolve_native_model_info`), so `list_models` short-circuits without
+        // touching the network. Mount no mock: any request would be recorded.
+        let server = MockServer::start().await;
+        let endpoint = OpenAiModelsEndpoint::new(
+            openrouter_provider_with_base_url(server.uri()),
+            /*auth_manager*/ None,
+        );
+
+        let (models, etag) = endpoint
+            .list_models("test-client")
+            .await
+            .expect("OpenRouter list_models must not error");
+
+        assert!(
+            models.is_empty(),
+            "OpenRouter must not publish a picker catalog"
+        );
+        assert!(etag.is_none());
+        assert!(
+            server.received_requests().await.unwrap().is_empty(),
+            "OpenRouter list_models must not hit the network"
+        );
     }
 
     #[test]
