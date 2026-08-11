@@ -142,6 +142,8 @@ impl ChatWidget {
             });
         }
 
+        items.push(self.custom_model_slug_item());
+
         let header = self.model_menu_header(
             "Select Model",
             "Pick a quick auto mode or browse all models.",
@@ -168,14 +170,6 @@ impl ChatWidget {
     }
 
     pub(crate) fn open_all_models_popup(&mut self, presets: Vec<ModelPreset>) {
-        if presets.is_empty() {
-            self.add_info_message(
-                "No additional models are available right now.".to_string(),
-                /*hint*/ None,
-            );
-            return;
-        }
-
         let mut items: Vec<SelectionItem> = Vec::new();
         for preset in presets.into_iter() {
             let description =
@@ -201,16 +195,64 @@ impl ChatWidget {
             });
         }
 
-        let header = self.model_menu_header(
-            "Select Model and Effort",
-            "Access legacy models by running codex -m <model_name> or in your config.toml",
-        );
+        items.push(self.custom_model_slug_item());
+
+        let subtitle = if items.len() == 1 {
+            "No bundled models are available -- type a slug for your provider (e.g. an OpenRouter id)."
+        } else {
+            "Access legacy models by running codex -m <model_name> or in your config.toml"
+        };
+        let header = self.model_menu_header("Select Model and Effort", subtitle);
         self.bottom_pane.show_selection_view(SelectionViewParams {
             footer_hint: Some(self.bottom_pane.standard_popup_hint_line()),
             items,
             header,
             ..Default::default()
         });
+    }
+
+    /// Selection entry that opens the free-text custom model prompt.
+    fn custom_model_slug_item(&self) -> SelectionItem {
+        let current_model = self.current_model().to_string();
+        SelectionItem {
+            name: "Type a model slug…".to_string(),
+            description: Some(format!(
+                "Use any model id under the current provider (current: {current_model})"
+            )),
+            actions: vec![Box::new(|tx| {
+                tx.send(AppEvent::OpenCustomModelPrompt);
+            })],
+            dismiss_on_select: true,
+            ..Default::default()
+        }
+    }
+
+    /// Open a free-text prompt to type any model slug.
+    ///
+    /// The typed slug switches the live session and is persisted to config
+    /// under the current provider. For non-OpenAI routers (e.g. OpenRouter),
+    /// set `model_provider` in config first; then type the router's model id
+    /// here and metadata fills from the provider's catalog.
+    pub(crate) fn open_custom_model_prompt(&mut self) {
+        let tx = self.app_event_tx.clone();
+        let view = CustomPromptView::new(
+            "Custom model".to_string(),
+            "Type a model slug (e.g. anthropic/claude-sonnet-4) and press Enter".to_string(),
+            /*initial_text*/ String::new(),
+            /*context_label*/ None,
+            Box::new(move |slug: String| {
+                let slug = slug.trim().to_string();
+                if slug.is_empty() {
+                    return;
+                }
+                tx.send(AppEvent::UpdateModel(slug.clone()));
+                tx.send(AppEvent::PersistModelSelection {
+                    model: slug,
+                    effort: None,
+                });
+            }),
+        );
+        self.bottom_pane.show_view(Box::new(view));
     }
 
     fn model_selection_actions(

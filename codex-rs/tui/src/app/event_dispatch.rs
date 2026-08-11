@@ -856,6 +856,9 @@ impl App {
             AppEvent::OpenAllModelsPopup { models } => {
                 self.chat_widget.open_all_models_popup(models);
             }
+            AppEvent::OpenCustomModelPrompt => {
+                self.chat_widget.open_custom_model_prompt();
+            }
             AppEvent::OpenFullAccessConfirmation {
                 preset,
                 return_to_permissions,

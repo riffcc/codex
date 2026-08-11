@@ -769,6 +769,10 @@ pub(crate) enum AppEvent {
         models: Vec<ModelPreset>,
     },
 
+    /// Open the free-text custom model prompt (type any slug under the
+    /// current provider, e.g. an OpenRouter id like `anthropic/claude-sonnet-4`).
+    OpenCustomModelPrompt,
+
     /// Open the confirmation prompt before enabling full access mode.
     OpenFullAccessConfirmation {
         preset: ApprovalPreset,

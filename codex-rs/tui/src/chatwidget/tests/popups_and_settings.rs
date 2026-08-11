@@ -2367,6 +2367,63 @@ async fn model_picker_hides_show_in_picker_false_models_from_cache() {
 }
 
 #[tokio::test]
+async fn model_picker_includes_custom_slug_entry() {
+    let (mut chat, _rx, _op_rx) = make_chatwidget_manual(Some("gpt-5.2")).await;
+    chat.thread_id = Some(ThreadId::new());
+    chat.open_model_popup();
+
+    let popup = render_bottom_popup(&chat, /*width*/ 80);
+    assert!(
+        popup.contains("Type a model slug…"),
+        "expected free-text entry in model popup:\n{popup}"
+    );
+}
+
+#[tokio::test]
+async fn all_models_popup_keeps_custom_slug_entry_when_no_picker_models() {
+    let (mut chat, _rx, _op_rx) = make_chatwidget_manual(Some("gpt-5.2")).await;
+    // OpenRouter-style setup: no picker-visible models (routed models are
+    // resolution-only). The free-text entry must remain the path to pick a model.
+    chat.open_all_models_popup(Vec::new());
+
+    let popup = render_bottom_popup(&chat, /*width*/ 80);
+    assert!(
+        popup.contains("Type a model slug…"),
+        "free-text entry must stay reachable when no picker models exist:\n{popup}"
+    );
+}
+
+#[tokio::test]
+async fn custom_slug_entry_requests_custom_prompt() {
+    let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(Some("gpt-5.2")).await;
+    while rx.try_recv().is_ok() {}
+    // With no picker models the only entry is the free-text item.
+    chat.open_all_models_popup(Vec::new());
+    chat.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+
+    assert_matches!(rx.try_recv(), Ok(AppEvent::OpenCustomModelPrompt));
+}
+
+#[tokio::test]
+async fn custom_model_prompt_submit_switches_and_persists_model() {
+    let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(Some("gpt-5.2")).await;
+    while rx.try_recv().is_ok() {}
+    chat.open_custom_model_prompt();
+    chat.handle_paste("vendor/typed-model".to_string());
+    chat.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+
+    assert_matches!(
+        rx.try_recv(),
+        Ok(AppEvent::UpdateModel(model)) if model == "vendor/typed-model"
+    );
+    assert_matches!(
+        rx.try_recv(),
+        Ok(AppEvent::PersistModelSelection { model, effort })
+            if model == "vendor/typed-model" && effort.is_none()
+    );
+}
+
+#[tokio::test]
 async fn server_overloaded_error_does_not_switch_models() {
     let (mut chat, mut rx, mut op_rx) = make_chatwidget_manual(Some("gpt-5.3-codex")).await;
     chat.set_model("gpt-5.3-codex");
