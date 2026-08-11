@@ -76,6 +76,7 @@ struct TestModelsEndpoint {
     uses_codex_backend: bool,
     responses: Mutex<VecDeque<Vec<ModelInfo>>>,
     fetch_count: AtomicUsize,
+    native_model: Option<ModelInfo>,
 }
 
 impl TestModelsEndpoint {
@@ -85,6 +86,7 @@ impl TestModelsEndpoint {
             uses_codex_backend: true,
             responses: Mutex::new(responses.into()),
             fetch_count: AtomicUsize::new(0),
+            native_model: None,
         })
     }
 
@@ -94,6 +96,20 @@ impl TestModelsEndpoint {
             uses_codex_backend: false,
             responses: Mutex::new(responses.into()),
             fetch_count: AtomicUsize::new(0),
+            native_model: None,
+        })
+    }
+
+    /// Construct an endpoint that supplies provider-native metadata for any
+    /// slug via `resolve_native_model_info`, simulating a provider (e.g.
+    /// OpenRouter) that fills metadata from its own catalog.
+    fn new_with_native_model(native_model: ModelInfo) -> Arc<Self> {
+        Arc::new(Self {
+            has_command_auth: false,
+            uses_codex_backend: true,
+            responses: Mutex::new(VecDeque::new()),
+            fetch_count: AtomicUsize::new(0),
+            native_model: Some(native_model),
         })
     }
 
@@ -166,6 +182,10 @@ impl ModelsEndpointClient for TestModelsEndpoint {
             .pop_front()
             .unwrap_or_default();
         Ok((models, None))
+    }
+
+    async fn resolve_native_model_info(&self, _model: &str) -> Option<ModelInfo> {
+        self.native_model.clone()
     }
 }
 
@@ -282,6 +302,52 @@ async fn get_model_info_uses_custom_catalog() {
     assert!(model_info.supports_image_detail_original);
     assert!(!model_info.supports_parallel_tool_calls);
     assert!(!model_info.used_fallback_model_metadata);
+}
+
+#[tokio::test]
+async fn get_model_info_uses_provider_native_metadata_for_free_typed_slug() {
+    let codex_home = tempdir().expect("temp dir");
+    let config = ModelsManagerConfig::default();
+    // A provider (e.g. OpenRouter) supplies its own catalog metadata for a slug
+    // that is absent from the bundled and remote catalogs.
+    let mut native = remote_model("vendor/external-model", "External", /*priority*/ 0);
+    native.context_window = Some(1_000_000);
+    let manager = openai_manager_for_tests(
+        codex_home.path().to_path_buf(),
+        TestModelsEndpoint::new_with_native_model(native),
+    );
+
+    let model_info = manager
+        .get_model_info("vendor/external-model", &config)
+        .await;
+
+    assert_eq!(model_info.slug, "vendor/external-model");
+    assert_eq!(model_info.display_name, "External");
+    assert_eq!(model_info.context_window, Some(1_000_000));
+    assert!(
+        !model_info.used_fallback_model_metadata,
+        "provider-native metadata should resolve without fallback"
+    );
+}
+
+#[tokio::test]
+async fn get_model_info_native_metadata_never_reaches_picker_catalog() {
+    let codex_home = tempdir().expect("temp dir");
+    let native = remote_model("vendor/external-model", "External", /*priority*/ 0);
+    let manager = openai_manager_for_tests(
+        codex_home.path().to_path_buf(),
+        TestModelsEndpoint::new_with_native_model(native),
+    );
+
+    // The native resolver fills metadata for `get_model_info` only; it must not
+    // leak into the listed/picker catalog.
+    let remote_models = manager.get_remote_models().await;
+    assert!(
+        !remote_models
+            .iter()
+            .any(|model| model.slug == "vendor/external-model"),
+        "native metadata must not appear in the picker catalog"
+    );
 }
 
 #[tokio::test]
@@ -506,6 +572,7 @@ async fn refresh_available_models_keeps_merging_for_api_auth() {
         uses_codex_backend: false,
         responses: Mutex::new(vec![remote_models.clone()].into()),
         fetch_count: AtomicUsize::new(0),
+        native_model: None,
     });
     let manager = openai_manager_for_tests_with_auth(
         codex_home.path().to_path_buf(),

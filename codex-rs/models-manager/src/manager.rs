@@ -42,6 +42,14 @@ pub trait ModelsEndpointClient: fmt::Debug + Send + Sync {
         &self,
         client_version: &str,
     ) -> CoreResult<(Vec<ModelInfo>, Option<String>)>;
+
+    /// Resolve provider-native metadata for a model slug absent from the
+    /// standard `/models` catalog. Returns `None` by default; providers that
+    /// maintain their own catalog (e.g. OpenRouter) override this to populate
+    /// accurate metadata for free-typed slugs without adding them to the picker.
+    async fn resolve_native_model_info(&self, _model: &str) -> Option<ModelInfo> {
+        None
+    }
 }
 
 /// Strategy for refreshing available models.
@@ -172,6 +180,14 @@ pub trait ModelsManager: fmt::Debug + Send + Sync {
         .await
     }
 
+    /// Resolve provider-supplied metadata for a slug absent from the bundled
+    /// and remote catalogs. Defaults to `None`. Providers that maintain their
+    /// own catalog (e.g. OpenRouter) override this so free-typed slugs resolve
+    /// with accurate metadata without polluting the picker.
+    async fn resolve_external_model_info(&self, _model: &str) -> Option<ModelInfo> {
+        None
+    }
+
     // todo(aibrahim): look if we can tighten it to pub(crate)
     /// Look up model metadata, applying remote overrides and config adjustments.
     async fn get_model_info(&self, model: &str, config: &ModelsManagerConfig) -> ModelInfo {
@@ -180,6 +196,12 @@ pub trait ModelsManager: fmt::Debug + Send + Sync {
             if self.include_detected_provider_models() {
                 crate::local_ollama_models::append_detected_ollama_models(&mut remote_models);
                 crate::cerebras_models::append_detected_cerebras_models(&mut remote_models);
+            }
+            // Fill provider-native metadata (e.g. OpenRouter) for free-typed
+            // slugs absent from the catalog. Added as a resolution candidate
+            // only; it does not appear in the picker.
+            if let Some(external) = self.resolve_external_model_info(model).await {
+                remote_models.push(external);
             }
             construct_model_info_from_candidates(model, &remote_models, config)
         }
@@ -255,6 +277,10 @@ impl ModelsManager for OpenAiModelsManager {
         ModelsResponse {
             models: self.get_remote_models().await,
         }
+    }
+
+    async fn resolve_external_model_info(&self, model: &str) -> Option<ModelInfo> {
+        self.endpoint_client.resolve_native_model_info(model).await
     }
 
     async fn get_remote_models(&self) -> Vec<ModelInfo> {
