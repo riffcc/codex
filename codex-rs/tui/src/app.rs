@@ -219,6 +219,7 @@ mod plugin_mentions;
 mod project_navigation;
 mod project_runtime;
 mod recent_openrouter_models;
+mod recent_openrouter_models_runtime;
 mod replay_filter;
 mod resize_reflow;
 mod session_lifecycle;
@@ -558,6 +559,7 @@ pub(crate) struct App {
     thread_event_listener_tasks: HashMap<ThreadId, JoinHandle<()>>,
     agent_navigation: AgentNavigationState,
     project_navigation: project_navigation::ProjectNavigationState,
+    recent_openrouter_models: recent_openrouter_models::RecentOpenRouterModels,
     split_pane: Option<split_pane::SplitPaneState<ThreadId>>,
     side_threads: HashMap<ThreadId, SideThreadState>,
     active_thread_id: Option<ThreadId>,
@@ -1020,6 +1022,8 @@ See the Codex keymap documentation for supported actions and examples."
         let upgrade_version = crate::updates::get_upgrade_version(&config);
         let project_navigation =
             project_navigation::ProjectNavigationState::load(&config.codex_home);
+        let recent_openrouter_models =
+            recent_openrouter_models::RecentOpenRouterModels::load(&config.codex_home);
 
         let mut app = Self {
             model_catalog,
@@ -1061,6 +1065,7 @@ See the Codex keymap documentation for supported actions and examples."
             thread_event_listener_tasks: HashMap::new(),
             agent_navigation: AgentNavigationState::default(),
             project_navigation,
+            recent_openrouter_models,
             split_pane: None,
             side_threads: HashMap::new(),
             active_thread_id: None,
@@ -1076,6 +1081,7 @@ See the Codex keymap documentation for supported actions and examples."
             #[cfg(feature = "voice-input")]
             handy_gamepad: HandyGamepadState::default(),
         };
+        app.sync_recent_openrouter_models_to_widget();
         if let Some(entry) = startup_hooks_browser {
             app.chat_widget.open_hooks_browser(entry);
         }

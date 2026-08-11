@@ -775,11 +775,26 @@ pub(crate) enum AppEvent {
     /// bound to OpenRouter.
     OpenCustomModelPrompt,
 
-    /// Persist `model` + `model_provider = "openrouter"` to config and start a
-    /// fresh session bound to OpenRouter. Provider is bound at thread creation
-    /// and cannot be repointed on a live thread, so switching providers always
-    /// requires a new session.
+    /// Persist `model` + `model_provider = "openrouter"` to config and switch
+    /// the active thread to OpenRouter mid-session via a thread-settings update.
+    /// The live conversation is preserved (no new session). The slug is also
+    /// recorded into the recent OpenRouter models list.
     SwitchToOpenRouterModel {
+        model: String,
+    },
+
+    /// Open the switch/remove sub-menu for a recent OpenRouter model slug.
+    OpenRecentOpenRouterModelMenu {
+        model: String,
+    },
+
+    /// Open the recent OpenRouter models list (a drill-down from the `/model`
+    /// popup). Each slug opens `OpenRecentOpenRouterModelMenu`.
+    OpenRecentOpenRouterModelsPopup,
+
+    /// Remove a slug from the recent OpenRouter models list and refresh the
+    /// `/model` popup so the removal is immediately visible.
+    RemoveRecentOpenRouterModel {
         model: String,
     },
 

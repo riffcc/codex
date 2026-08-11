@@ -54,6 +54,7 @@ pub(super) async fn make_test_app() -> App {
         thread_event_listener_tasks: HashMap::new(),
         agent_navigation: AgentNavigationState::default(),
         project_navigation: super::project_navigation::ProjectNavigationState::default(),
+        recent_openrouter_models: super::recent_openrouter_models::RecentOpenRouterModels::default(),
         split_pane: None,
         side_threads: HashMap::new(),
         active_thread_id: None,

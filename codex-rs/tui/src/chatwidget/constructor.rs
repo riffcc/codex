@@ -110,6 +110,7 @@ impl ChatWidget {
             // `/lcs hidden` opts out.
             show_lcs_substrate: true,
             config,
+            recent_openrouter_models: Vec::new(),
             effective_service_tier,
             skills_all: Vec::new(),
             skills_initial_state: None,

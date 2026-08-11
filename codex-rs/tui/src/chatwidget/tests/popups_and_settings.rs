@@ -2423,6 +2423,64 @@ async fn custom_model_prompt_submit_switches_to_openrouter() {
 }
 
 #[tokio::test]
+async fn recent_openrouter_entry_hidden_when_no_recents() {
+    let (mut chat, _rx, _op_rx) = make_chatwidget_manual(Some("gpt-5.2")).await;
+    chat.thread_id = Some(ThreadId::new());
+    // No recents set -> the drill-down entry must not clutter the popup.
+    chat.open_model_popup();
+
+    let popup = render_bottom_popup(&chat, /*width*/ 80);
+    assert!(
+        !popup.contains("Recent OpenRouter models"),
+        "recents entry should be hidden when there are no recents:\n{popup}"
+    );
+}
+
+#[tokio::test]
+async fn recent_openrouter_entry_shown_when_recents_set() {
+    let (mut chat, _rx, _op_rx) = make_chatwidget_manual(Some("gpt-5.2")).await;
+    chat.thread_id = Some(ThreadId::new());
+    chat.set_recent_openrouter_models(vec!["anthropic/claude-sonnet-4".to_string()]);
+    chat.open_model_popup();
+
+    let popup = render_bottom_popup(&chat, /*width*/ 80);
+    assert!(
+        popup.contains("Recent OpenRouter models"),
+        "recents drill-down entry should appear when recents exist:\n{popup}"
+    );
+}
+
+#[tokio::test]
+async fn recent_openrouter_popup_lists_each_slug() {
+    let (mut chat, _rx, _op_rx) = make_chatwidget_manual(Some("gpt-5.2")).await;
+    chat.set_recent_openrouter_models(vec![
+        "anthropic/claude-sonnet-4".to_string(),
+        "google/gemma-2-9b".to_string(),
+    ]);
+    chat.open_recent_openrouter_models_popup();
+
+    let popup = render_bottom_popup(&chat, /*width*/ 80);
+    assert!(
+        popup.contains("anthropic/claude-sonnet-4")
+            && popup.contains("google/gemma-2-9b"),
+        "recents popup should list every slug:\n{popup}"
+    );
+}
+
+#[tokio::test]
+async fn recent_openrouter_model_menu_offers_switch_and_remove() {
+    let (mut chat, _rx, _op_rx) = make_chatwidget_manual(Some("gpt-5.2")).await;
+    chat.open_recent_openrouter_model_menu("anthropic/claude-sonnet-4".to_string());
+
+    let popup = render_bottom_popup(&chat, /*width*/ 80);
+    assert!(
+        popup.contains("Switch to anthropic/claude-sonnet-4")
+            && popup.contains("Remove from recents"),
+        "per-slug sub-menu should offer switch + remove:\n{popup}"
+    );
+}
+
+#[tokio::test]
 async fn server_overloaded_error_does_not_switch_models() {
     let (mut chat, mut rx, mut op_rx) = make_chatwidget_manual(Some("gpt-5.3-codex")).await;
     chat.set_model("gpt-5.3-codex");

@@ -878,6 +878,24 @@ impl App {
             AppEvent::OpenCustomModelPrompt => {
                 self.chat_widget.open_custom_model_prompt();
             }
+            AppEvent::OpenRecentOpenRouterModelsPopup => {
+                self.chat_widget.open_recent_openrouter_models_popup();
+            }
+            AppEvent::OpenRecentOpenRouterModelMenu { model } => {
+                self.chat_widget
+                    .open_recent_openrouter_model_menu(model);
+            }
+            AppEvent::RemoveRecentOpenRouterModel { model } => {
+                self.recent_openrouter_models.remove(&model);
+                self.persist_recent_openrouter_models("removing recent OpenRouter model");
+                self.sync_recent_openrouter_models_to_widget();
+                self.chat_widget
+                    .refresh_recent_openrouter_models_popup();
+                self.chat_widget.add_info_message(
+                    format!("Removed {model} from recent OpenRouter models"),
+                    /*hint*/ None,
+                );
+            }
             AppEvent::SwitchToOpenRouterModel { model } => {
                 let edits = crate::config_update::build_openrouter_model_selection_edits(&model);
                 match crate::config_update::write_config_batch(
@@ -902,6 +920,12 @@ impl App {
                             format!("Switched to OpenRouter · {model}"),
                             /*hint*/ None,
                         );
+                        // Record the slug into recents so it surfaces in the
+                        // /model popup next time. Persistence is best-effort;
+                        // a failed write is reported but never blocks the switch.
+                        self.recent_openrouter_models.record(model.clone());
+                        self.persist_recent_openrouter_models("recording recent OpenRouter model");
+                        self.sync_recent_openrouter_models_to_widget();
                     }
                     Err(err) => {
                         let error = format_config_error(&err);

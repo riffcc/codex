@@ -70,10 +70,6 @@ impl RecentOpenRouterModels {
         self.recents.retain(|existing| existing != slug);
     }
 
-    pub(crate) fn is_empty(&self) -> bool {
-        self.recents.is_empty()
-    }
-
     pub(crate) fn iter(&self) -> impl Iterator<Item = &str> {
         self.recents.iter().map(String::as_str)
     }
@@ -88,8 +84,7 @@ mod tests {
     fn load_missing_file_returns_empty() {
         let dir = tempdir().unwrap();
         let loaded = RecentOpenRouterModels::load(dir.path());
-        assert!(loaded.is_empty());
-        assert_eq!(loaded.recents, Vec::<String>::new());
+        assert!(loaded.recents.is_empty());
     }
 
     #[test]
@@ -141,6 +136,6 @@ mod tests {
         let path = RecentOpenRouterModels::state_file_path(dir.path());
         std::fs::write(path, "{ not valid json").unwrap();
         let loaded = RecentOpenRouterModels::load(dir.path());
-        assert!(loaded.is_empty());
+        assert!(loaded.recents.is_empty());
     }
 }

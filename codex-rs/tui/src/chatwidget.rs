@@ -385,6 +385,7 @@ mod permission_popups;
 mod permissions_menu;
 mod protocol;
 mod protocol_requests;
+mod recent_openrouter_popup;
 mod rate_limits;
 use self::rate_limits::RateLimitErrorKind;
 use self::rate_limits::RateLimitSwitchPromptState;
@@ -534,6 +535,10 @@ pub(crate) struct ChatWidget {
     bottom_pane: BottomPane,
     transcript: TranscriptState,
     config: Config,
+    /// Display snapshot of the user's recent OpenRouter model slugs, synced
+    /// from the App's authoritative `RecentOpenRouterModels`. Rendered as
+    /// re-usable rows in the `/model` popup.
+    recent_openrouter_models: Vec<String>,
     raw_output_mode: bool,
     /// Whether the LCS substrate (MCP tool calls) is rendered as it runs.
     /// True by default; `/lcs hidden` sets it false.

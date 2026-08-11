@@ -142,6 +142,9 @@ impl ChatWidget {
             });
         }
 
+        if let Some(recents_item) = self.recent_openrouter_models_entry_item() {
+            items.push(recents_item);
+        }
         items.push(self.custom_model_slug_item());
 
         let header = self.model_menu_header(
@@ -195,6 +198,9 @@ impl ChatWidget {
             });
         }
 
+        if let Some(recents_item) = self.recent_openrouter_models_entry_item() {
+            items.push(recents_item);
+        }
         items.push(self.custom_model_slug_item());
 
         let subtitle = if items.len() == 1 {
