@@ -87,3 +87,24 @@ fn openai_model_selection_does_not_force_provider() {
         .collect::<Vec<_>>();
     assert_eq!(key_paths, vec!["model", "model_reasoning_effort"]);
 }
+
+#[test]
+fn model_provider_for_selection_maps_known_local_models() {
+    // The two dynamically-appended gemma4 variants each pin a provider so the
+    // live thread can switch mid-session alongside the config write.
+    assert_eq!(model_provider_for_selection("gemma4:12b"), Some(OLLAMA_OSS_PROVIDER_ID));
+    assert_eq!(
+        model_provider_for_selection("gemma-4-31b"),
+        Some(CEREBRAS_PROVIDER_ID)
+    );
+}
+
+#[test]
+fn model_provider_for_selection_returns_none_for_provider_agnostic_models() {
+    // Bundled OpenAI models and arbitrary slugs carry no provider override;
+    // the live thread keeps whatever provider config already resolved.
+    assert_eq!(model_provider_for_selection("gpt-5.4"), None);
+    assert_eq!(model_provider_for_selection("codex-auto-fast"), None);
+    assert_eq!(model_provider_for_selection(""), None);
+    assert_eq!(model_provider_for_selection("anthropic/claude-sonnet-4"), None);
+}

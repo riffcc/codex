@@ -55,6 +55,36 @@ impl App {
         self.send_thread_settings_update(app_server, params).await;
     }
 
+    /// Optimistically apply a model + provider switch to the app and widget
+    /// config copies. The authoritative switch is the thread-settings update
+    /// (see `sync_active_thread_model_and_provider_setting`), which rebinds
+    /// subsequent turns; the resulting `ThreadSettingsUpdated` notification
+    /// then reconciles the cached session and widget. This local apply just
+    /// keeps the UI consistent in the meantime.
+    ///
+    /// If the provider is not registered in `model_providers`, falls back to a
+    /// model-slug-only update so the user still sees the new model name.
+    pub(super) fn apply_model_provider_locally(&mut self, model: &str, provider_id: &str) {
+        match self.config.model_providers.get(provider_id).cloned() {
+            Some(provider) => {
+                self.config.model_provider_id = provider_id.to_string();
+                self.config.model_provider = provider.clone();
+                self.chat_widget.set_model_provider(
+                    model,
+                    provider_id.to_string(),
+                    provider,
+                );
+            }
+            None => {
+                tracing::warn!(
+                    "{provider_id} provider missing from model_providers; \
+                     switching model slug only"
+                );
+                self.chat_widget.set_model(model);
+            }
+        }
+    }
+
     pub(super) async fn sync_active_thread_reasoning_setting(
         &mut self,
         app_server: &mut AppServerSession,

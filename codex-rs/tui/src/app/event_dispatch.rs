@@ -824,9 +824,27 @@ impl App {
                     .await;
             }
             AppEvent::UpdateModel(model) => {
-                self.chat_widget.set_model(&model);
-                self.sync_active_thread_model_setting(app_server, model)
-                    .await;
+                // When the model implies a provider (gemma4 on Ollama,
+                // gemma-4-31b on Cerebras), switch the provider mid-session
+                // alongside the slug so subsequent turns route to the right
+                // backend without restarting the session. Other models leave
+                // the resolved provider untouched, mirroring config behavior.
+                match crate::config_update::model_provider_for_selection(&model) {
+                    Some(provider_id) => {
+                        self.apply_model_provider_locally(&model, provider_id);
+                        self.sync_active_thread_model_and_provider_setting(
+                            app_server,
+                            model.clone(),
+                            provider_id.to_string(),
+                        )
+                        .await;
+                    }
+                    None => {
+                        self.chat_widget.set_model(&model);
+                        self.sync_active_thread_model_setting(app_server, model)
+                            .await;
+                    }
+                }
                 self.sync_active_thread_service_tier_to_cached_session()
                     .await;
             }
@@ -870,37 +888,10 @@ impl App {
                 {
                     Ok(_) => {
                         tracing::info!("Switching to OpenRouter model (mid-session): {model}");
-                        // Optimistic local update: reflect the switch in both the
-                        // app and widget config copies immediately. The
-                        // authoritative switch is the thread-settings update
-                        // below (the session applies the provider to subsequent
-                        // turns); the ThreadSettingsUpdated notification then
-                        // reconciles the cached session and widget. The live
+                        // Optimistic local apply, then the authoritative
+                        // mid-session switch via thread-settings. The live
                         // conversation is preserved -- no new session.
-                        match self
-                            .config
-                            .model_providers
-                            .get(OPENROUTER_PROVIDER_ID)
-                            .cloned()
-                        {
-                            Some(provider) => {
-                                self.config.model_provider_id =
-                                    OPENROUTER_PROVIDER_ID.to_string();
-                                self.config.model_provider = provider.clone();
-                                self.chat_widget.set_model_provider(
-                                    &model,
-                                    OPENROUTER_PROVIDER_ID.to_string(),
-                                    provider,
-                                );
-                            }
-                            None => {
-                                tracing::warn!(
-                                    "OpenRouter provider missing from model_providers; \
-                                     switching model slug only"
-                                );
-                                self.chat_widget.set_model(&model);
-                            }
-                        }
+                        self.apply_model_provider_locally(&model, OPENROUTER_PROVIDER_ID);
                         self.sync_active_thread_model_and_provider_setting(
                             app_server,
                             model.clone(),

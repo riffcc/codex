@@ -78,27 +78,37 @@ pub(crate) fn build_model_selection_edits(
         replace_config_value("model", serde_json::json!(model)),
         effort_edit,
     ];
-    if is_ollama_gemma4_model(model) {
+    if let Some(provider_id) = model_provider_for_selection(model) {
         edits.push(replace_config_value(
             "model_provider",
-            serde_json::json!(OLLAMA_OSS_PROVIDER_ID),
+            serde_json::json!(provider_id),
         ));
-        edits.push(build_oss_provider_edit(OLLAMA_OSS_PROVIDER_ID));
-    } else if is_cerebras_gemma4_model(model) {
-        edits.push(replace_config_value(
-            "model_provider",
-            serde_json::json!(CEREBRAS_PROVIDER_ID),
-        ));
+        // Ollama additionally records the active OSS provider so the local
+        // runtime picks the right backend when multiple are configured.
+        if provider_id == OLLAMA_OSS_PROVIDER_ID {
+            edits.push(build_oss_provider_edit(OLLAMA_OSS_PROVIDER_ID));
+        }
     }
     edits
 }
 
-fn is_ollama_gemma4_model(model: &str) -> bool {
-    model == "gemma4:12b"
-}
-
-fn is_cerebras_gemma4_model(model: &str) -> bool {
-    model == "gemma-4-31b"
+/// Resolve the provider a model selection should pin, if any.
+///
+/// The dynamically-appended gemma4 variants (`gemma4:12b` on Ollama,
+/// `gemma-4-31b` on Cerebras) each imply a specific provider that must follow
+/// the model slug both in config writes and in the live thread-settings update.
+/// Every other model leaves the provider untouched (config's resolved provider
+/// wins). This is the single source of truth shared by `build_model_selection_
+/// edits` (config persistence) and the `UpdateModel` handler (live mid-session
+/// switch) so the two never drift.
+pub(crate) fn model_provider_for_selection(model: &str) -> Option<&'static str> {
+    if model == "gemma4:12b" {
+        return Some(OLLAMA_OSS_PROVIDER_ID);
+    }
+    if model == "gemma-4-31b" {
+        return Some(CEREBRAS_PROVIDER_ID);
+    }
+    None
 }
 
 /// Config edits for switching to an OpenRouter model.
