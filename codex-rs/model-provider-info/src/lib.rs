@@ -452,6 +452,18 @@ impl ModelProviderInfo {
         }
     }
 
+    /// Built-in [OpenRouter](https://openrouter.ai) provider.
+    ///
+    /// Uses the Chat Completions wire (`WireApi::Chat`) -- OpenRouter does not
+    /// implement OpenAI's Responses API, so `Responses` would 404. Auth is a
+    /// single bearer token from `OPENROUTER_API_KEY`.
+    ///
+    /// OpenRouter routes thousands of models, so Rolodex ships no curated slug
+    /// list: users type any slug from `openrouter.ai/models`, and the model
+    /// provider fills accurate metadata for it from OpenRouter's public
+    /// `/models` catalog on first resolution (resolution-only; the catalog is
+    /// never added to the model picker). Prefer a tool-capable model, since
+    /// agentic features rely on function calling.
     pub fn create_openrouter_provider() -> ModelProviderInfo {
         ModelProviderInfo {
             name: OPENROUTER_PROVIDER_NAME.into(),

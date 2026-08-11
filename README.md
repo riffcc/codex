@@ -18,9 +18,25 @@ If you want Codex in your code editor (VS Code, Cursor, Windsurf), <a href="http
 Codex is an excellent foundation, but it's built around a single provider (OpenAI) and a single interaction model (text-in, text-out). Rolodex takes the Codex core and pushes it in directions that matter for real-world, multi-provider agent work:
 
 - **Voice-first interaction.** Rolodex integrates the [Handy.computer](https://handy.computer) voice-to-text engine, making it possible to drive your coding agent by speaking naturally instead of typing. This isn't a wrapper around a generic STT API -- it's purpose-built for developer workflows where you're dictating code intent, describing bugs, or narrating architectural decisions while your hands are busy.
-- **Broader model compatibility.** Codex already supports multiple providers out of the box. Rolodex extends that work with compatibility shims for models that don't fully implement the OpenAI API (such as some Chinese-market models), so more endpoints just work without manual configuration.
+- **Broader model compatibility.** Codex already supports multiple providers out of the box. Rolodex extends that work with built-in [OpenRouter](https://openrouter.ai) support and compatibility shims for models that don't fully implement the OpenAI API (such as some Chinese-market models), so more endpoints just work without manual configuration.
 - **Opinionated packaging.** Rolodex ships as a single binary (`rolodex`) with `.deb` packages for Debian/Ubuntu, prerelease builds on every push to main, and stable releases cut from tags. No npm required if you don't want it.
 - **Community-driven.** Rolodex is an open fork that welcomes contributions from everyone. We build on the excellent work OpenAI does upstream and add what our users need.
+
+### Using OpenRouter
+
+Rolodex ships built-in [OpenRouter](https://openrouter.ai) support. Set the provider to `openrouter`, type any OpenRouter model slug, and expose your API key:
+
+```toml
+# ~/.codex/config.toml (Rolodex reads the same paths as Codex)
+model_provider = "openrouter"
+model          = "anthropic/claude-sonnet-4"   # any slug from openrouter.ai/models
+```
+
+```shell
+export OPENROUTER_API_KEY="or-..."
+```
+
+There is no curated model list to keep in sync -- type the slug you want and Rolodex fills in accurate context-window, max-output, and input-modality metadata straight from OpenRouter's public catalog on first use, then caches it for the session. Because OpenRouter routes thousands of models with widely varying capabilities, **pick a tool-capable model** (one that supports function calling); Rolodex's agentic features depend on it.
 
 ### Acknowledgements
 
