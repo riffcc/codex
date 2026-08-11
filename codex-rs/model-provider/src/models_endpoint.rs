@@ -27,6 +27,7 @@ use http::HeaderMap;
 use tokio::time::timeout;
 
 use crate::auth::resolve_provider_auth;
+use crate::openrouter_catalog::OpenRouterCatalog;
 
 const MODELS_REFRESH_TIMEOUT: Duration = Duration::from_secs(5);
 const MODELS_ENDPOINT: &str = "/models";
@@ -36,6 +37,9 @@ const MODELS_ENDPOINT: &str = "/models";
 pub(crate) struct OpenAiModelsEndpoint {
     provider_info: ModelProviderInfo,
     auth_manager: Option<Arc<AuthManager>>,
+    /// Lazily-fetched OpenRouter catalog used to fill metadata for free-typed
+    /// slugs. Only populated when the provider is OpenRouter; otherwise unused.
+    openrouter_catalog: tokio::sync::OnceCell<OpenRouterCatalog>,
 }
 
 impl OpenAiModelsEndpoint {
@@ -46,6 +50,7 @@ impl OpenAiModelsEndpoint {
         Self {
             provider_info,
             auth_manager,
+            openrouter_catalog: tokio::sync::OnceCell::new(),
         }
     }
 
@@ -106,6 +111,25 @@ impl ModelsEndpointClient for OpenAiModelsEndpoint {
         .await
         .map_err(|_| CodexErr::Timeout)?
         .map_err(map_api_error)
+    }
+
+    async fn resolve_native_model_info(&self, model: &str) -> Option<ModelInfo> {
+        if !self.provider_info.is_openrouter() {
+            return None;
+        }
+        let base_url = self.provider_info.base_url.clone()?;
+        // One catalog fetch per session, cached for the lifetime of the
+        // endpoint. On failure the cell is left unset so the next resolution
+        // retries rather than caching an empty result.
+        let catalog = self
+            .openrouter_catalog
+            .get_or_try_init(|| async {
+                let client = build_reqwest_client();
+                OpenRouterCatalog::fetch(&client, &base_url).await
+            })
+            .await
+            .ok()?;
+        catalog.get(model).cloned()
     }
 }
 
@@ -206,7 +230,14 @@ mod tests {
     use std::num::NonZeroU64;
 
     use super::*;
+    use codex_model_provider_info::OPENROUTER_DEFAULT_BASE_URL;
     use codex_protocol::config_types::ModelProviderAuthInfo;
+    use serde_json::json;
+    use wiremock::matchers::method;
+    use wiremock::matchers::path;
+    use wiremock::Mock;
+    use wiremock::MockServer;
+    use wiremock::ResponseTemplate;
 
     fn provider_info_with_command_auth() -> ModelProviderInfo {
         ModelProviderInfo {
@@ -243,5 +274,86 @@ mod tests {
         );
 
         assert!(!endpoint.has_command_auth());
+    }
+
+    fn openrouter_provider_with_base_url(base_url: String) -> ModelProviderInfo {
+        let mut provider = ModelProviderInfo::create_openrouter_provider();
+        provider.base_url = Some(base_url);
+        provider
+    }
+
+    #[tokio::test]
+    async fn openrouter_endpoint_resolves_free_typed_slug_from_catalog() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/models"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "data": [{
+                    "id": "vendor/typed-model",
+                    "name": "Vendor: Typed Model",
+                    "context_length": 256_000,
+                    "architecture": { "input_modalities": ["text"] }
+                }]
+            })))
+            .mount(&server)
+            .await;
+
+        let endpoint = OpenAiModelsEndpoint::new(
+            openrouter_provider_with_base_url(server.uri()),
+            /*auth_manager*/ None,
+        );
+
+        let resolved = endpoint
+            .resolve_native_model_info("vendor/typed-model")
+            .await
+            .expect("OpenRouter slug should resolve from the fetched catalog");
+        assert_eq!(resolved.slug, "vendor/typed-model");
+        assert_eq!(resolved.display_name, "Vendor: Typed Model");
+        assert_eq!(resolved.context_window, Some(256_000));
+        assert!(!resolved.used_fallback_model_metadata);
+
+        // Cache hit for the already-fetched catalog; an absent slug resolves to None.
+        assert!(endpoint
+            .resolve_native_model_info("vendor/missing-model")
+            .await
+            .is_none());
+
+        // The catalog is fetched once: a second mock hit would have been recorded.
+        assert_eq!(server.received_requests().await.unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn non_openrouter_endpoint_does_not_resolve_native_metadata() {
+        let endpoint = OpenAiModelsEndpoint::new(
+            ModelProviderInfo::create_openai_provider(/*base_url*/ None),
+            /*auth_manager*/ None,
+        );
+
+        assert!(endpoint
+            .resolve_native_model_info("any/slug")
+            .await
+            .is_none());
+    }
+
+    #[tokio::test]
+    async fn openrouter_endpoint_without_base_url_does_not_resolve() {
+        let mut provider = ModelProviderInfo::create_openrouter_provider();
+        provider.base_url = None;
+        let endpoint = OpenAiModelsEndpoint::new(provider, /*auth_manager*/ None);
+
+        assert!(endpoint
+            .resolve_native_model_info("vendor/typed-model")
+            .await
+            .is_none());
+    }
+
+    #[test]
+    fn openrouter_default_base_url_points_at_public_models_endpoint() {
+        let provider = ModelProviderInfo::create_openrouter_provider();
+        assert_eq!(
+            provider.base_url.as_deref(),
+            Some(OPENROUTER_DEFAULT_BASE_URL)
+        );
+        assert!(provider.is_openrouter());
     }
 }

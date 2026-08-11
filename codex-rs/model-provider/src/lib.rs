@@ -2,6 +2,7 @@ mod amazon_bedrock;
 mod auth;
 mod bearer_auth_provider;
 mod models_endpoint;
+mod openrouter_catalog;
 mod provider;
 
 pub use auth::auth_provider_from_auth;
