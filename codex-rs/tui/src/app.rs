@@ -218,6 +218,7 @@ mod platform_actions;
 mod plugin_mentions;
 mod project_navigation;
 mod project_runtime;
+mod recent_openrouter_models;
 mod replay_filter;
 mod resize_reflow;
 mod session_lifecycle;
