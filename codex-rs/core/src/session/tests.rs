@@ -3766,6 +3766,30 @@ async fn session_settings_legacy_fast_service_tier_update_uses_priority_request_
     );
 }
 
+#[tokio::test]
+async fn session_settings_model_provider_update_switches_provider_mid_session() {
+    let session_configuration = make_session_configuration_for_tests().await;
+
+    // Sanity: the test config does not start on OpenRouter.
+    assert_ne!(session_configuration.model_provider_id, "openrouter");
+
+    // Applying a model_provider update must switch both the id and the resolved
+    // provider info live, so subsequent turns run against the new provider
+    // without restarting the session.
+    let updated = session_configuration
+        .apply(&SessionSettingsUpdate {
+            model_provider_id: Some("openrouter".to_string()),
+            ..Default::default()
+        })
+        .expect("model provider update should apply");
+
+    assert_eq!(updated.model_provider_id, "openrouter");
+    assert!(
+        updated.provider.is_openrouter(),
+        "resolved provider info should be OpenRouter after the switch"
+    );
+}
+
 pub(crate) async fn make_session_configuration_for_tests() -> SessionConfiguration {
     let codex_home = tempfile::tempdir().expect("create temp dir");
     let config = build_test_config(codex_home.path()).await;

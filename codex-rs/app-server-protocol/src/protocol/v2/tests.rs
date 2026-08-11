@@ -3732,6 +3732,16 @@ fn thread_settings_update_params_preserve_field_level_experimental_gates() {
         crate::experimental_api::ExperimentalApi::experimental_reason(&collaboration_mode),
         Some("thread/settings/update.collaborationMode")
     );
+
+    let model_provider = ThreadSettingsUpdateParams {
+        thread_id: "thread_123".to_string(),
+        model_provider: Some("openrouter".to_string()),
+        ..Default::default()
+    };
+    assert_eq!(
+        crate::experimental_api::ExperimentalApi::experimental_reason(&model_provider),
+        Some("thread/settings/update.modelProvider")
+    );
 }
 
 #[test]
